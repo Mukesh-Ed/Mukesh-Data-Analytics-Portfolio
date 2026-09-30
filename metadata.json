@@ -1,0 +1,6 @@
+{
+  "name": "Mukesh.dev - Data Portfolio",
+  "description": "Portfolio for Mukesh - Data Analyst & Python Developer with interactive 3D visualizers, live Python runner, case studies, and Gemini AI assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
