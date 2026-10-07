@@ -1,14 +1,12 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = process.cwd();
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -52,8 +50,9 @@ const PRIMARY_MODEL =
   process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const FALLBACK_MODELS = [
-  "gemini-3.7-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.6-flash",
+  "gemini-3.5-flash",
 ];
 
 const GEMINI_MODELS = [
@@ -128,7 +127,7 @@ const generateWithRetry = async (
   /*
    * Maximum 3 attempts per model.
    */
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 2;
 
   for (const model of GEMINI_MODELS) {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -140,7 +139,12 @@ const generateWithRetry = async (
         const response = await ai.models.generateContent({
           model,
           contents,
-          config,
+          config: {
+            thinkingConfig: {
+              thinkingLevel: "low",
+            },
+            ...(config || {}),
+          },
         });
 
         console.log(
@@ -664,61 +668,49 @@ Sent from Mukesh's Portfolio
    SERVE FRONTEND
    ========================================================= */
 
-if (process.env.NODE_ENV !== "production") {
-  const {
-    createServer: createViteServer,
-  } = await import("vite");
+/* =========================================================
+   SERVE FRONTEND + START SERVER
+   ========================================================= */
 
-  const vite =
-    await createViteServer({
+async function startServer() {
+  if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
+
+    const vite = await createViteServer({
       server: {
         middlewareMode: true,
       },
-
       appType: "spa",
     });
 
-  app.use(vite.middlewares);
-} else {
-  const distPath =
-    path.join(__dirname, "dist");
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(__dirname, "dist");
 
-  app.use(
-    express.static(distPath)
-  );
+    app.use(express.static(distPath));
 
-  app.get("*", (_req, res) => {
-    res.sendFile(
-      path.join(
-        distPath,
-        "index.html"
-      )
-    );
+    app.use((req, res, next) => {
+      if (req.method !== "GET") {
+        return next();
+      }
+
+      res.sendFile(path.join(distPath, "index.html"), (err) => {
+        if (err) {
+          next(err);
+        }
+      });
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`[Gemini] Primary model: ${PRIMARY_MODEL}`);
+    console.log(`[Gemini] Fallback models: ${FALLBACK_MODELS.join(", ")}`);
+    console.log(`[Email] Contact destination: ${CONTACT_TO_EMAIL}`);
   });
 }
 
-/* =========================================================
-   START SERVER
-   ========================================================= */
-
-app.listen(
-  PORT,
-  "0.0.0.0",
-  () => {
-    console.log(
-      `Server running on http://localhost:${PORT}`
-    );
-
-    console.log(
-      `[Gemini] Primary model: ${PRIMARY_MODEL}`
-    );
-
-    console.log(
-      `[Gemini] Fallback models: ${FALLBACK_MODELS.join(", ")}`
-    );
-
-    console.log(
-      `[Email] Contact destination: ${CONTACT_TO_EMAIL}`
-    );
-  }
-);
+startServer().catch((error) => {
+  console.error("[Server Startup Error]", error);
+  process.exit(1);
+});
